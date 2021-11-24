@@ -1,24 +1,20 @@
 import os
-import json
-
 import torch
-from PIL import Image
-from torchvision import transforms
-import matplotlib.pyplot as plt
 from scipy.io import loadmat
 import pandas as pd
 from tqdm import tqdm
-from models.resnet import resnet34
+from models.resnet import resnet101, resnet50
+
+from config import config
 
 
 def predict(path):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 
-
     # load image
     data = loadmat(path)
-    ecg_data = torch.tensor(data["ecgdata"])
+    ecg_data = torch.tensor(data["ecgdata"])[:,0:3000]
     # expand batch dimension
     img = torch.unsqueeze(ecg_data, dim=0)
 
@@ -26,10 +22,10 @@ def predict(path):
     class_indict = {}
 
     # create model
-    model = resnet34(num_classes=2).to(device)
+    model = resnet50(num_classes=2).to(device)
 
     # load model weights
-    weights_path = "./resNet34.pth"
+    weights_path = "./work_dir/Res50Net.pth"
     assert os.path.exists(weights_path), "file: '{}' dose not exist.".format(weights_path)
     model.load_state_dict(torch.load(weights_path, map_location=device))
 
@@ -55,9 +51,9 @@ if __name__ == '__main__':
     for file in tqdm(files):
         path = val_data_root + file
         label = predict(path)
-        names.append(os.path.basename(file))
+        names.append(os.path.splitext(file)[0])
         tags.append(label)
     dataframe = pd.DataFrame({'name':names,'tag':tags})
 
     #将DataFrame存储为csv,index表示是否显示行名，default=True
-    dataframe.to_csv("test.csv",index=False,sep=',')
+    dataframe.to_csv("answer.csv",index=False,sep=',')

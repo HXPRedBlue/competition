@@ -1,4 +1,6 @@
 import os
+from models.resnet import resnet34, resnet50, resnet101
+from models.ECGNet import ECGNet
 
 
 class Config:
@@ -7,13 +9,13 @@ class Config:
     val_dir = os.path.join(root, "val")
     
     label = os.path.join(root, "trainreference.csv")
-    save_data = os.path.join(root, "data.pth")
-    train_data_rate = 0.8
+    save_data = os.path.join(root, "data_val.pth")
+    train_data_rate = 0.9
     
     
     # for train
     #训练的模型名称
-    model_name = 'resnet34'
+    model_name = resnet101
     #在第几个epoch进行到下一个state,调整lr
     stage_epoch = [32,64,128]
     #训练时的batch大小
@@ -33,7 +35,7 @@ class Config:
     #保存模型当前epoch的权重
     current_w = 'current_w.pth'
     #保存最佳的权重
-    best_w = 'best_w.pth'
+    best_w = './work_dir/ResNet34_best.pth'
     # 学习率衰减 lr/=lr_decay
     lr_decay = 10
 
