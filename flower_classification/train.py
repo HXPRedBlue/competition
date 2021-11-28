@@ -13,6 +13,7 @@ from torchvision import transforms, datasets
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import random_split
 
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
@@ -33,30 +34,29 @@ epochs = 10
 writer = SummaryWriter(f"./tensorboard/{datetime.now().strftime('%y%m%d_%H%M')}")   # 数据存放在这个文件夹
 
 # ------------------------------------ step 1.1 : 加载数据集,并进行归一化------------------------------------
-data_transform = {
-    "train": transforms.Compose([transforms.RandomResizedCrop(224),
-                                    transforms.RandomHorizontalFlip(),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
-    "val": transforms.Compose([transforms.Resize(256),
+transform_image = transforms.Compose([transforms.Resize(256),
                                 transforms.CenterCrop(224),
                                 transforms.ToTensor(),
-                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
+                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
-image_path = "./data"  # flower data set path
+image_path = "./data/flower_photos/"  # flower data set path
 assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
-train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
-                                        transform=data_transform["train"])
 
-train_num = len(train_dataset)
-
-# {'daisy':0, 'dandelion':1, 'roses':2, 'sunflower':3, 'tulips':4}
-flower_list = train_dataset.class_to_idx
+dataset = datasets.ImageFolder(root=image_path, transform=transform_image, generator=torch.Generator().manual_seed(0))
+flower_list = dataset.class_to_idx
 cla_dict = dict((val, key) for key, val in flower_list.items())
-# write dict into json file
 json_str = json.dumps(cla_dict, indent=4)
 with open('class_indices.json', 'w') as json_file:
     json_file.write(json_str)
+
+train_size = int(0.8 * len(dataset))
+test_size = len(dataset) - train_size
+train_dataset, validate_dataset = random_split(dataset, [train_size, test_size])
+
+# train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
+#                                         transform=data_transform["train"])
+
+train_num = len(train_dataset)
 
 batch_size = 16
 nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
@@ -66,8 +66,8 @@ train_loader = torch.utils.data.DataLoader(train_dataset,
                                             batch_size=batch_size, shuffle=True,
                                             num_workers=nw)
 
-validate_dataset = datasets.ImageFolder(root=os.path.join(image_path, "val"),
-                                        transform=data_transform["val"])
+# validate_dataset = datasets.ImageFolder(root=os.path.join(image_path, "val"),
+#                                         transform=data_transform["val"])
 val_num = len(validate_dataset)
 validate_loader = torch.utils.data.DataLoader(validate_dataset,
                                                 batch_size=batch_size, shuffle=False,
