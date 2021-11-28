@@ -1,3 +1,4 @@
+from datetime import datetime
 import os
 import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,7 +18,7 @@ from tensorboardX import SummaryWriter
 
 from models.resnet import resnet34, resnet50, resnet101
 from config import config
-from dataset import ECGDataset
+from data.dataset import ECGDataset
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -26,7 +27,7 @@ batch_size = 16
 epochs = 100
 
 # 定义Summary_Writer
-writer = SummaryWriter('./tensorboard')   # 数据存放在这个文件夹
+writer = SummaryWriter(f"./tensorboard/{datetime.now().strftime('%y%m%d_%H%M')}")   # 数据存放在这个文件夹
 
 # ------------------------------------ step 1/5 : 加载数据------------------------------------
 # @TODO 数据标准化

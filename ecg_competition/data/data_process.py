@@ -12,7 +12,6 @@ from config import config
 seed = 15
 
 
-
 def process_data():
     label = pd.read_csv(config.label)
     
