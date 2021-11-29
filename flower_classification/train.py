@@ -8,14 +8,16 @@ sys.path.append(BASE_DIR)
 os.chdir(BASE_DIR)
 import json
 import numpy as np
-from sklearn.metrics import f1_score, accuracy_score, precision_score, recall_score, classification_report, confusion_matrix
+from sklearn.metrics import f1_score, precision_score, recall_score, classification_report
 from sklearn.preprocessing import label_binarize
 from sklearn.metrics import roc_curve, auc
 from torchvision import transforms, datasets
+from torchvision.models import resnet18
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import random_split
+from sklearn.model_selection import StratifiedKFold
 
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
@@ -38,6 +40,8 @@ writer = SummaryWriter(f"./tensorboard/{datetime.now().strftime('%y%m%d_%H%M')}"
 # ------------------------------------ step 1/5 : 加载数据集,并进行归一化------------------------------------
 transform_image = transforms.Compose([transforms.Resize(256),
                                 transforms.CenterCrop(224),
+                                transforms.RandomHorizontalFlip(0.5),
+                                transforms.RandomVerticalFlip(0.5),
                                 transforms.ToTensor(),
                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
@@ -55,8 +59,6 @@ train_size = int(0.8 * len(dataset))
 test_size = len(dataset) - train_size
 train_dataset, validate_dataset = random_split(dataset, [train_size, test_size], generator=torch.Generator().manual_seed(0))
 
-# train_dataset = datasets.ImageFolder(root=os.path.join(image_path, "train"),
-#                                         transform=data_transform["train"])
 
 train_num = len(train_dataset)
 
@@ -68,8 +70,6 @@ train_loader = torch.utils.data.DataLoader(train_dataset,
                                             batch_size=batch_size, shuffle=True,
                                             num_workers=nw)
 
-# validate_dataset = datasets.ImageFolder(root=os.path.join(image_path, "val"),
-#                                         transform=data_transform["val"])
 val_num = len(validate_dataset)
 validate_loader = torch.utils.data.DataLoader(validate_dataset,
                                                 batch_size=batch_size, shuffle=False,
@@ -148,30 +148,17 @@ for epoch in range(epochs):
     print(f'[epoch {epoch + 1}] train_loss: {running_loss / train_steps}  val_accuracy: {val_accurate} \
     precision: {precision}, recall:{recall}, f1:{f1}, classification_report:{classification_report_score}')
     
-    
-    
-    # # validate
-    # net.eval()
-    # acc = 0.0  # accumulate accurate number / epoch
-    # with torch.no_grad():
-    #     val_bar = tqdm(validate_loader)
-    #     for val_data in val_bar:
-    #         val_images, val_labels = val_data
-    #         outputs = net(val_images.to(device))
-    #         # loss = loss_function(outputs, test_labels)
-    #         predict_y = torch.max(outputs, dim=1)[1]
-    #         acc += torch.eq(predict_y, val_labels.to(device)).sum().item()
-
-    #         val_bar.desc = "valid epoch[{}/{}]".format(epoch + 1,
-    #                                                     epochs)
-
-    # val_accurate = acc / val_num
-    # print('[epoch %d] train_loss: %.3f  val_accuracy: %.3f' %
-    #         (epoch + 1, running_loss / train_steps, val_accurate))
-
+    writer.add_scalar('loss', running_loss, epoch)
+    writer.add_scalar('f1', f1, epoch)
+    writer.add_scalar('precision', precision, epoch)
+    writer.add_scalar('recall', recall, epoch)
     if val_accurate > best_acc:
         best_acc = val_accurate
         torch.save(net.state_dict(), save_path)
+
+    dummy_input = torch.rand(20, 3, 224, 224)  # 假设输入20张1*28*28的图片
+    writer.add_graph(net, (dummy_input.to(device=device),))
+
 
 print('Finished Training')
 
