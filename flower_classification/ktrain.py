@@ -23,42 +23,17 @@ from tqdm import tqdm
 from tensorboardX import SummaryWriter
 from sklearn.model_selection import KFold
 import numpy as np
+import pandas as pd
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print("using {} device.".format(device))
 batch_size = 16
-epochs = 10
+epochs = 3
+image_path = "./data/flower_photos/"  # flower data set path
+nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
 
 
-def get_all_data(image_path):
-    transform_image = transforms.Compose([transforms.Resize(256),
-                                    transforms.CenterCrop(224),
-                                    transforms.RandomHorizontalFlip(0.5),
-                                    transforms.RandomVerticalFlip(0.5),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-
-   
-    assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
-
-    dataset = datasets.ImageFolder(root=image_path, transform=transform_image)
-    data_list = dataset.class_to_idx
-    cla_dict = dict((val, key) for key, val in data_list.items())
-    json_str = json.dumps(cla_dict, indent=4)
-    with open('class_indices.json', 'w') as json_file:
-        json_file.write(json_str)
-    
-    return dataset
-if __name__ == "__main__":
-    image_path = "./data/flower_photos/"  # flower data set path
-    transform_image = transforms.Compose([transforms.Resize(256),
-                                    transforms.CenterCrop(224),
-                                    transforms.RandomHorizontalFlip(0.5),
-                                    transforms.RandomVerticalFlip(0.5),
-                                    transforms.ToTensor(),
-                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-
-   
+def train():
     assert os.path.exists(image_path), "{} path does not exist.".format(image_path)
 
     all_data = datasets.ImageFolder(root=image_path, transform=transform_image)
@@ -68,10 +43,10 @@ if __name__ == "__main__":
     with open('class_indices.json', 'w') as json_file:
         json_file.write(json_str)
     kfold = KFold(n_splits=5, shuffle=True)
-    batch_size = 16
-    nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
+
 
     for fold_idx, (train_index, val_index) in enumerate(kfold.split(all_data.targets)):
+        print('*'*25,'第', fold_idx + 1,'折','*'*25)
         writer = SummaryWriter(f"./tensorboard/{datetime.now().strftime('%y%m%d_%H%M')}_{fold_idx}")   # 数据存放在这个文件夹
         train_data = torch.utils.data.Subset(all_data, train_index)
         val_data = torch.utils.data.Subset(all_data, val_index)
@@ -160,6 +135,7 @@ if __name__ == "__main__":
             if val_accurate > best_acc:
                 best_acc = val_accurate
                 torch.save(net.state_dict(), save_path)
+                best_nets[fold_idx] = net
 
             writer.add_scalar('loss', running_loss, epoch)
             writer.add_scalar('f1', f1, epoch)
@@ -171,10 +147,58 @@ if __name__ == "__main__":
             writer.add_graph(net, (dummy_input.to(device=device),))
 
         print('Finished Training')
+
+if __name__ == "__main__":
+    re_train = True
+    best_nets = [0 for x in range(5)]
+    transform_image = transforms.Compose([transforms.Resize(256),
+                                    transforms.CenterCrop(224),
+                                    transforms.RandomHorizontalFlip(0.5),
+                                    transforms.RandomVerticalFlip(0.5),
+                                    transforms.ToTensor(),
+                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+
+    if re_train:
+       train()
+    else:
+        for i in range(5):
+            model = resnet34(num_classes=5).to(device)
+
+            # load model weights
+            weights_path = f"./resNet34_{i}.pth"
+            assert os.path.exists(weights_path), "file: '{}' dose not exist.".format(weights_path)
+            model.load_state_dict(torch.load(weights_path, map_location=device))
+            best_nets[i] = model
     
     # ------------------------------------ step 5/5 : 预测 --------------------------------------------------
-    # test_path = "./data/test/"
-    # test_data = datasets.ImageFolder(root=test_path, transform=transform_image)
+    test_path = "./data/test/"
+    test_data = datasets.ImageFolder(root=test_path, transform=transform_image)
 
-    # test_data_loader = datasets.DatasetFolder(test_data)
-    # for data in tqdm(test_data_loader):
+    test_data_loader = torch.utils.data.DataLoader(test_data,
+                                            batch_size=1, shuffle=False,
+                                            num_workers=nw)
+
+    results = list([] for i in range(len(test_data)))
+    for net in best_nets:
+        net.eval()
+        with torch.no_grad():
+            # predict class
+            for index, data in enumerate(test_data_loader):
+                img, lab = data
+                output = torch.squeeze(net(img.to(device))).cpu()
+                predict = torch.softmax(output, dim=0)
+                predict_cla = int(torch.argmax(predict).numpy())
+                results[index].append(predict_cla)  
+    
+    labels = []
+    files = []
+    for index, result in enumerate(results):
+        amxlabel = max(result, key=result.count)
+        labels.append(amxlabel)
+        file = test_data.imgs[index][0]
+        files.append(os.path.basename(file))
+    df = pd.DataFrame({'file':files,'label':labels})
+    print(df)
+    df.to_csv('result.csv', index=False)
+
+
