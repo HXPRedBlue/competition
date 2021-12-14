@@ -1,6 +1,8 @@
 from datetime import datetime
 import os
 import sys
+
+from torch.optim import lr_scheduler
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 print(BASE_DIR)
 #添加系统环境变量
@@ -12,13 +14,13 @@ from sklearn.metrics import f1_score
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 from tqdm import tqdm
 from tensorboardX import SummaryWriter
 
 from models.resnet import resnet34, resnet50, resnet101
 from config import config
 from data.dataset import ECGDataset
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -30,7 +32,6 @@ epochs = 100
 writer = SummaryWriter(f"./tensorboard/{datetime.now().strftime('%y%m%d_%H%M')}")   # 数据存放在这个文件夹
 
 # ------------------------------------ step 1/5 : 加载数据------------------------------------
-# @TODO 数据标准化
 train_dataset = ECGDataset(config.save_data,True)
 train_num = len(train_dataset)
 nw = min([os.cpu_count(), batch_size if batch_size > 1 else 0, 8])  # number of workers
@@ -39,7 +40,7 @@ train_loader = torch.utils.data.DataLoader(train_dataset,
                                             batch_size=batch_size, shuffle=True,
                                             num_workers=nw)
 
-validate_dataset = ECGDataset(config.save_data,False)
+validate_dataset = ECGDataset("./data/data_val.pth",False)
 val_num = len(validate_dataset)
 validate_loader = torch.utils.data.DataLoader(validate_dataset,
                                                 batch_size=batch_size, shuffle=False,
@@ -59,6 +60,7 @@ loss_function = nn.CrossEntropyLoss()
 # construct an optimizer
 params = [p for p in net.parameters() if p.requires_grad]
 optimizer = optim.Adam(params, lr=0.0001)
+# scheduler = CosineAnnealingLR(optimizer,T_max=20)
 
 # ------------------------------------ step 4/5 : 训练并保存模型 --------------------------------------------------
 
@@ -77,6 +79,7 @@ for epoch in range(epochs):
         loss = loss_function(logits, labels.to(device))
         loss.backward()
         optimizer.step()
+        # scheduler.step()
 
         # print statistics
         running_loss += loss.item()

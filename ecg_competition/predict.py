@@ -3,9 +3,11 @@ import torch
 from scipy.io import loadmat
 import pandas as pd
 from tqdm import tqdm
-from models.resnet import resnet101, resnet50
+from models.resnet import resnet101, resnet50, resnet34
 
 from config import config
+import numpy as np
+from scipy.signal import savgol_filter
 
 
 def predict(path):
@@ -14,7 +16,10 @@ def predict(path):
 
     # load image
     data = loadmat(path)
-    ecg_data = torch.tensor(data["ecgdata"])[:,0:3000]
+    ecg_data = data["ecgdata"][:,0:3000]
+    ecg_data = savgol_filter(ecg_data, 51, 3)
+    ecg_data = np.array([data for data in ecg_data[:,::5]])
+    ecg_data = torch.tensor(ecg_data)
     # expand batch dimension
     img = torch.unsqueeze(ecg_data, dim=0)
 
@@ -22,10 +27,10 @@ def predict(path):
     class_indict = {}
 
     # create model
-    model = resnet50(num_classes=2).to(device)
+    model = resnet34(num_classes=2).to(device)
 
     # load model weights
-    weights_path = "./work_dir/Res50Net.pth"
+    weights_path = "./weights/resNet34_0.pth"
     assert os.path.exists(weights_path), "file: '{}' dose not exist.".format(weights_path)
     model.load_state_dict(torch.load(weights_path, map_location=device))
 

@@ -98,14 +98,14 @@ class ECGNet(nn.Module):
     def __init__(self, input_channel=1, num_classes=20):#, layers=[2, 2, 2, 2, 2, 2]
         sizes = [
             [3,3,3,3,3,3],
-            [5,5,5,5,3,3],
-            [7,7,7,7,3,3],
+            # [5,5,5,5,3,3],
+            # [7,7,7,7,3,3],
                 ]
         self.sizes = sizes
         layers = [
             [3,3,2,2,2,2],
-            [3,2,2,2,2,2],
-            [2,2,2,2,2,2]
+            # [3,2,2,2,2,2],
+            # [2,2,2,2,2,2]
             ]
            
 
@@ -122,7 +122,7 @@ class ECGNet(nn.Module):
         #                       bias=False)
         #print(self.conv2)
         #self.bn3 = nn.BatchNorm2d(32)
-        #self.dropout = nn.Dropout(.2)
+        self.dropout = nn.Dropout(.2)
         self.maxpool = nn.MaxPool2d(kernel_size=(1,3), stride=(1,2), padding=(0,0))
         self.avgpool = nn.AdaptiveAvgPool1d(1)
         
@@ -183,6 +183,7 @@ class ECGNet(nn.Module):
 
     def forward(self, x0):
         x0 = x0.unsqueeze(1)
+        # print(x0.shape)
         x0.transpose(1, 2).contiguous()
         
         x0 = self.conv1(x0)     
@@ -193,7 +194,7 @@ class ECGNet(nn.Module):
         #x0 = self.bn2(x0)
         #x0 = self.relu(x0)
         x0 = self.maxpool(x0)
-        #x0 = self.dropout(x0)
+        x0 = self.dropout(x0)
         
 
         xs = []

@@ -131,6 +131,7 @@ dmypy.json
 */data/train/
 */data/val/
 */data/flower_photos/
+*/data/PCB_DATASET/
 *.pth
 *.csv
 

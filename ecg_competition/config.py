@@ -9,8 +9,8 @@ class Config:
     val_dir = os.path.join(root, "val")
     
     label = os.path.join(root, "trainreference.csv")
-    save_data = os.path.join(root, "data_val.pth")
-    train_data_rate = 0.9
+    save_data = os.path.join(root, "all_data.pth")
+    train_data_rate = 1.0
     
     
     # for train

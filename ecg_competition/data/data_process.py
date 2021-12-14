@@ -17,22 +17,22 @@ def process_data():
     
     train_data = label.sample(frac=config.train_data_rate, random_state=seed)
     val_data = label[~label.index.isin(train_data.index)]
-    train_data = train_data.append(train_data).append(train_data)
-    train_data = train_data.reset_index(drop=True)
+    # train_data = train_data.append(train_data).append(train_data)
+    # train_data = train_data.reset_index(drop=True)
     val_data = val_data.sort_index().reset_index(drop=True)
     data = {"train" : train_data, "val": val_data}
-    torch.save(data, config.save_data)
+    torch.save(data, "./data/all_data.pth")
     print("save data success")
 
 
 def load_data(path):
     data = torch.load(path)
     df = data["val"]
-    print(df['tag'].mean())
+    print(df['tag'])
     df = data["train"]
     print(df['tag'])
 if __name__ == '__main__':
     
-    # process_data()
+    process_data()
     
-    load_data(config.save_data)
+    load_data("./data/all_data.pth")
