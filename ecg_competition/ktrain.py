@@ -58,8 +58,6 @@ k_fold = 5
 classes_num = 2
 lr = 0.0001
 
-
-
 def train():
 
     # ------------------------------------ step 1/5 : 加载数据------------------------------------
@@ -78,16 +76,39 @@ def train():
 
         validate_loader = DataLoader(val_data,batch_size=batch_size, shuffle=True,
                                             num_workers=nw)
-        
+
+        mixup_args = {
+            'mixup_alpha': 1.,
+            'cutmix_alpha': 0.,
+            'cutmix_minmax': None,
+            'prob': 1.0,
+            'switch_prob': 0.,
+            'mode': 'batch',
+            'label_smoothing': 0,
+            'num_classes': 2}
+        mixup_fn = Mixup(**mixup_args)
         # ------------------------------------ step 2/5 : 初始化网络------------------------------------
 
         net = ECGNet(input_channel=1,num_classes=2).to(device)
+        ema_model = ModelEma(net)
 
         # ------------------------------------ step 3/5 : 定义损失函数和优化器 ------------------------------------
         # define loss function
-        loss_function = nn.CrossEntropyLoss()
+        # loss_function = nn.CrossEntropyLoss()
+        # loss_function = LabelSmoothingCrossEntropy()
+        loss_function = SoftTargetCrossEntropy()
+        # loss_function = nn.BCEWithLogitsLoss()
+        val_loss_function = nn.CrossEntropyLoss()
+        
 
         optimizer = optim.Adam(net.parameters(), lr=lr)
+        # args = SimpleNamespace()
+        # args.lr = lr
+        # args.weight_decay = 0.05
+        # args.opt = 'adam' #'lookahead_adam' to use `lookahead`
+        # args.momentum = 0.9 
+        # optimizer = create_optimizer(args=args, model=net)
+        # scheduler = CosineAnnealingLR(optimizer,T_max=20)
 
 
         # ------------------------------------ step 4/5 : 训练并保存模型 --------------------------------------------------
@@ -107,20 +128,24 @@ def train():
             train_pres = []
             for step, data in enumerate(train_bar):
                 images, labels = data
+                inputs, labels = mixup_fn(images.to(device), labels.to(device))
                 optimizer.zero_grad()
-                logits = net(images.to(device, dtype=torch.float))
-                loss = loss_function(logits, labels.to(device))
-                train_pres.extend(logits.argmax(dim=1).cpu().numpy())
+                logits = net(inputs.to(device, dtype=torch.float))
+                loss = loss_function(logits, labels)
+                _, pred = torch.max(logits, 1)
+                train_pres.extend(pred.cpu().numpy())
                 train_trues.extend(labels.cpu().numpy())
                 loss.backward()
                 optimizer.step()
-                # scheduler.step(epoch)
+
+                ema_model.update(net)
 
                 # print statistics
                 running_loss += loss.item()
 
                 train_bar.desc = "train epoch[{}/{}] loss:{:.3f}".format(epoch + 1, epochs, loss)
-            train_acc = accuracy_score(train_trues, train_pres)                                                           
+            # scheduler.step()
+            # train_acc = accuracy_score(train_trues, train_pres)                                                           
             # validate
             val_preds = []
             val_trues = []
@@ -130,8 +155,8 @@ def train():
             with torch.no_grad():
                 for i, (val_data, val_labels) in enumerate(validate_loader):
                     outputs = net(val_data.to(device, dtype=torch.float))
-                    loss = loss_function(outputs, val_labels.to(device))
-                    class_probs_batch = [F.softmax(el, dim=0) for el in outputs]
+                    loss = val_loss_function(outputs, val_labels.to(device))
+                    class_probs_batch = [F.softmax(el) for el in outputs]
                     outputs = outputs.argmax(dim=1)
                     val_preds.extend(outputs.cpu().numpy())
                     val_trues.extend(val_labels.cpu().numpy())
@@ -139,8 +164,8 @@ def train():
                     val_run_loss += loss.item()
                     val_prebs.append(class_probs_batch)
 
-            print(val_labels)
-            print(outputs)
+            # print(val_labels)
+            # print(outputs)
             precision = precision_score(val_trues, val_preds)
             recall = recall_score(val_trues, val_preds)
             val_f1 = f1_score(val_trues, val_preds)
@@ -148,7 +173,8 @@ def train():
             train_loss = running_loss / train_steps
             val_loss = val_run_loss / val_steps
             ap = average_precision_score(val_trues, val_preds)
-            train_f1 = f1_score(train_trues, train_pres)
+            # train_f1 = f1_score(train_trues, train_pres)
+            train_f1 = 0
             print(f'[epoch {epoch + 1}] train_loss: {train_loss}  val_accuracy: {val_accurate} \
             val_f1: {val_f1}, recall:{recall}, train_f1:{train_f1}')
             
