@@ -49,7 +49,7 @@ from models.ECGNet import ECGNet
 from config import config
 from data.task2_dataset_all import ECGDataset
 
-device = torch.device("cuda:0")
+device = torch.device("cuda:1")
 print("using {} device.".format(device))
 batch_size = 32
 epochs = 15
@@ -127,6 +127,7 @@ def train():
             train_bar = tqdm(train_loader)
             for step, data in enumerate(train_bar):
                 images, labels = data
+                images, labels = mixup_fn(images, labels)
                 optimizer.zero_grad()
                 logits = net(images.to(device))
                 loss = loss_function(logits, labels.to(device))
